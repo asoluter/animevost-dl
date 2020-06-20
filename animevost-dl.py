@@ -37,38 +37,50 @@ def get_playlist(id):
         name = episode.get("name")
         if not name:
             continue
-        number = int(name.split(" ")[0])
-        vod_url = episode.get("hd", episode.get("std", None))
-        if not vod_url:
+        number_str = name.split(" ")[0]
+        number = int(number_str) if number_str.isnumeric() else 1
+        vod_urls = []
+        hd_vod = episode.get("hd")
+        if hd_vod:
+            vod_urls.append(hd_vod)
+        std_vod = episode.get("std")
+        if std_vod:
+            vod_urls.append(std_vod)
+        if not vod_urls:
             continue
-        playlist.append((number, vod_url))
+        playlist.append((number, vod_urls))
 
     return sorted(playlist)
 
 
-def download_video(name, vod_url, save_location):
+def download_video(name, vod_urls, save_location):
     if not (os.path.exists(save_location) and os.path.isdir(save_location)):
         os.mkdir(save_location)
 
-    file_name = name+os.path.splitext(vod_url)[1]
+    file_name = name+os.path.splitext(vod_urls[0])[1]
     file_path = os.path.join(save_location, file_name)
 
     if os.path.exists(file_path):
         print("Video exists, skipping download")
         return
 
-    with requests.get(vod_url, stream=True) as r:
-        r.raise_for_status()
-        total_length = r.headers.get('content-length')
-        dl = 0
-        with open(file_path, "wb") as f:
-            for chunk in r.iter_content(chunk_size=4096):
-                f.write(chunk)
-                if total_length:
-                    dl += len(chunk)
-                    done = int(PROGRESS_BAR_LENGTH * dl / int(total_length))
-                    sys.stdout.write("\r[%s%s]" % ('=' * done, ' ' * (PROGRESS_BAR_LENGTH - done)))
-                    sys.stdout.flush()
+    for vod_url in vod_urls:
+        try:
+            with requests.get(vod_url, stream=True) as r:
+                r.raise_for_status()
+                total_length = r.headers.get('content-length')
+                dl = 0
+                with open(file_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=4096):
+                        f.write(chunk)
+                        if total_length:
+                            dl += len(chunk)
+                            done = int(PROGRESS_BAR_LENGTH * dl / int(total_length))
+                            sys.stdout.write("\r[%s%s]" % ('=' * done, ' ' * (PROGRESS_BAR_LENGTH - done)))
+                            sys.stdout.flush()
+        except requests.HTTPError:
+            print(f"Failed loading {vod_url}, retrying with lower quality")
+    sys.stdout.write("\n")
 
 
 def download_playlist(id):
@@ -76,11 +88,11 @@ def download_playlist(id):
     playlist = get_playlist(id)
     save_location = os.path.join(os.getcwd(), title)
 
-    print(f"\nPlaylist name: {title}")
+    print(f"\nPlaylist name: {title}\n")
     n_vods = len(playlist)
-    for n, vod_url in playlist:
-        print(f"\nDownloading video {n} of {n_vods}")
-        download_video(f"{n:04}", vod_url, save_location)
+    for n, vod_urls in playlist:
+        print(f"Downloading video {n} of {n_vods}")
+        download_video(f"{n:04}", vod_urls, save_location)
 
 
 def get_id_from_url(web_url):
