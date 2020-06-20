@@ -76,7 +76,7 @@ def download_playlist(id):
     playlist = get_playlist(id)
     save_location = os.path.join(os.getcwd(), title)
 
-    print(f"Playlist name: {title}")
+    print(f"\nPlaylist name: {title}")
     n_vods = len(playlist)
     for n, vod_url in playlist:
         print(f"\nDownloading video {n} of {n_vods}")
